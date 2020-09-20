@@ -5,21 +5,21 @@ import unittest
 
 class TestAPI(unittest.TestCase):
     API_BASE_URL = 'http://127.0.0.1:5000'
-    HEALTH_URL = '{}/health'.format(API_BASE_URL)
+    HEALTH_URL = f'{API_BASE_URL}/health'
 
     # Users URLs
-    ALL_USERS_URL = '{}/users'.format(API_BASE_URL)
-    REGISTER_URL = '{}/register'.format(API_BASE_URL)
-    AUTHORISE_URL = '{}/auth'.format(API_BASE_URL)
-    USER_URL = '{}/user/'.format(API_BASE_URL)
+    ALL_USERS_URL = f'{API_BASE_URL}/users'
+    REGISTER_URL = f'{API_BASE_URL}/register'
+    AUTHORISE_URL = f'{API_BASE_URL}/auth'
+    USER_URL = f'{API_BASE_URL}/user/'
 
     # Items URLs
-    ALL_ITEMS_URL = '{}/items'.format(API_BASE_URL)
-    ITEM_URL = '{}/item/'.format(API_BASE_URL)
+    ALL_ITEMS_URL = f'{API_BASE_URL}/items'
+    ITEM_URL = f'{API_BASE_URL}/item/'
 
     # Stores URLs
-    ALL_STORES_URL = '{}/stores'.format(API_BASE_URL)
-    STORE_URL = '{}/store/'.format(API_BASE_URL)
+    ALL_STORES_URL = f'{API_BASE_URL}/stores'
+    STORE_URL = f'{API_BASE_URL}/store/'
 
     OK_OBJ = {"message": "ok"}
 
@@ -49,13 +49,13 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json(), {"items": []})
 
-    def test_030_empty_items(self):
+    def test_030_empty_users(self):
         """Check no users in DB via endpoint"""
         r = requests.get(self.ALL_USERS_URL)
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json(), {"users": []})
 
-    def test_040_empty_items(self):
+    def test_040_empty_stores(self):
         """Check no stores in DB via endpoint"""
         r = requests.get(self.ALL_STORES_URL)
         self.assertEqual(r.status_code, 200)
@@ -85,7 +85,7 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(r.status_code, 201)
         self.assertEqual(r.json()['name'], 'store1')
 
-    def test_090_create_store(self):
+    def test_090_create_store2(self):
         """Create a new store2"""
         r = requests.post(self.STORE_URL + 'store2')
         self.assertEqual(r.status_code, 201)
@@ -114,7 +114,7 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.headers['Content-Length'], '193')
 
-        headers = {'Authorization': 'JWT {}'.format(access_token)}
+        headers = {'Authorization': f'JWT {access_token}'}
         r = requests.get(self.ITEM_URL + 'item1', headers=headers)
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()['name'], 'item1')
@@ -128,7 +128,7 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.headers['Content-Length'], '193')
 
-        headers = {'Authorization': 'JWT {}'.format(access_token)}
+        headers = {'Authorization': f'JWT {access_token}'}
         r = requests.get(self.STORE_URL + 'store1', headers=headers)
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json(), {
@@ -151,7 +151,7 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.headers['Content-Length'], '193')
 
-        headers = {'Authorization': 'JWT {}'.format(access_token)}
+        headers = {'Authorization': f'JWT {access_token}'}
         r = requests.get(self.USER_URL + '1', headers=headers)
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json(), {
@@ -248,7 +248,7 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.headers['Content-Length'], '193')
 
-        headers = {'Authorization': 'JWT {}'.format(access_token)}
+        headers = {'Authorization': f'JWT {access_token}'}
         r = requests.get(self.ITEM_URL + 'item1', headers=headers)
         self.assertEqual(r.status_code, 404)
         self.assertEqual(r.json(), {"message": "Item not found"})
@@ -265,7 +265,7 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.headers['Content-Length'], '193')
 
-        headers = {'Authorization': 'JWT {}'.format(access_token)}
+        headers = {'Authorization': f'JWT {access_token}'}
         r = requests.get(self.STORE_URL + 'store1', headers=headers)
         self.assertEqual(r.status_code, 404)
         self.assertEqual(r.json(), {"message": "Store not found"})
@@ -280,6 +280,23 @@ class TestAPI(unittest.TestCase):
         r = requests.get(self.USER_URL + '2')
         self.assertEqual(r.status_code, 404)
         self.assertEqual(r.json(), {"message": "User 2 not found"})
+
+    def test_230_update_non_existent_user9(self):
+        """Update a user which doesn't already exist"""
+        r = requests.put(self.USER_URL + '9', json={"username": "user9", "password": "xxx"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json(), {
+            "id": 2,
+            "username": "user9"
+        })
+
+    def test_240_update_non_existent_item9(self):
+        """Update an item which doesn't already exist"""
+        r = requests.put(self.ITEM_URL + 'item9', json={
+            "price": 99.99,
+            "store_id": 1
+        })
+        self.assertEqual(r.status_code, 200)
 
     def tearDown(self):
         pass

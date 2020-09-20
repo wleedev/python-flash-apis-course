@@ -29,6 +29,11 @@ class UserRegister(Resource):
 
 class User(Resource):
     parser = reqparse.RequestParser()
+    parser.add_argument('username',
+                        type=str,
+                        required=True,
+                        help="This field cannot be empty"
+                        )
     parser.add_argument('password',
                         type=str,
                         required=True,
@@ -62,7 +67,7 @@ class User(Resource):
         if user:
             user.password = data['password']
         else:
-            user = UserModel(user_id, data['username'], data['password'])
+            user = UserModel(data['username'], data['password'])
 
         user.upsert()
 
