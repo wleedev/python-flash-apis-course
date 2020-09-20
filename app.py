@@ -6,6 +6,7 @@ from security import authenticate, identity
 from resources.user import UserRegister, User, UserList
 from resources.item import Item, ItemList
 from resources.store import Store, StoreList
+from resources.health import Health
 
 from db import db
 
@@ -31,6 +32,7 @@ api.add_resource(StoreList, '/stores')
 api.add_resource(UserRegister, '/register')
 api.add_resource(User, '/user/<int:user_id>')
 api.add_resource(UserList, '/users')
+api.add_resource(Health, '/health')
 
 if __name__ == '__main__':
     db.init_app(app)

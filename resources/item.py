@@ -45,6 +45,8 @@ class Item(Resource):
         item = ItemModel.find_by_name(name)
         if item:
             item.delete_from_db()
+        else:
+            return {'message': 'Item {} not found'.format(name)}, 404
 
         return {'message': "Item deleted"}
 
