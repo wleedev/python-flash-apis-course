@@ -6,12 +6,15 @@ import unittest
 class TestAPI(unittest.TestCase):
     API_BASE_URL = 'http://127.0.0.1:5000'
     HEALTH_URL = f'{API_BASE_URL}/health'
+    AUTH_TOKEN_TYPE = 'Bearer'
+    ATUH_HEADER_CONTENT_LENGTH = '612'
 
     # Users URLs
     ALL_USERS_URL = f'{API_BASE_URL}/users'
     REGISTER_URL = f'{API_BASE_URL}/register'
-    AUTHORISE_URL = f'{API_BASE_URL}/auth'
+    AUTHORISE_URL = f'{API_BASE_URL}/login'
     USER_URL = f'{API_BASE_URL}/user/'
+    REFRESH_URL = f'{API_BASE_URL}/refresh'
 
     # Items URLs
     ALL_ITEMS_URL = f'{API_BASE_URL}/items'
@@ -20,8 +23,6 @@ class TestAPI(unittest.TestCase):
     # Stores URLs
     ALL_STORES_URL = f'{API_BASE_URL}/stores'
     STORE_URL = f'{API_BASE_URL}/store/'
-
-    OK_OBJ = {"message": "ok"}
 
     # Delete any records in DB
     connection = sqlite3.connect('../data.db')
@@ -41,13 +42,20 @@ class TestAPI(unittest.TestCase):
         """Check health endpoint available"""
         r = requests.get(self.HEALTH_URL)
         self.assertEqual(r.status_code, 200)
-        self.assertEqual((r.json()), self.OK_OBJ)
+        self.assertEqual((r.json()), {"message": "ok"})
 
     def test_020_empty_items(self):
-        """Check no items in DB via endpoint"""
-        r = requests.get(self.ALL_ITEMS_URL)
-        self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json(), {"items": []})
+        """Check no items in DB via SQL"""
+        connection = sqlite3.connect('../data.db')
+        cursor = connection.cursor()
+
+        cursor.execute("select count(*) from items")
+        result = cursor.fetchone()
+
+        connection.commit()
+        connection.close()
+
+        self.assertEqual(result[0], 0)
 
     def test_030_empty_users(self):
         """Check no users in DB via endpoint"""
@@ -77,7 +85,7 @@ class TestAPI(unittest.TestCase):
         """Authorise user1"""
         r = requests.post(self.AUTHORISE_URL, json={"username": "user1", "password": "abc"})
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.headers['Content-Length'], '193')
+        self.assertEqual(r.headers['Content-Length'], self.ATUH_HEADER_CONTENT_LENGTH)
 
     def test_080_create_store1(self):
         """Create a new store1"""
@@ -112,9 +120,9 @@ class TestAPI(unittest.TestCase):
         r = requests.post(self.AUTHORISE_URL, json={"username": "user1", "password": "abc"})
         access_token = r.json()['access_token']
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.headers['Content-Length'], '193')
+        self.assertEqual(r.headers['Content-Length'], self.ATUH_HEADER_CONTENT_LENGTH)
 
-        headers = {'Authorization': f'JWT {access_token}'}
+        headers = {'Authorization': f'{self.AUTH_TOKEN_TYPE} {access_token}'}
         r = requests.get(self.ITEM_URL + 'item1', headers=headers)
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()['name'], 'item1')
@@ -122,14 +130,8 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(r.json()['store_id'], 1)
 
     def test_130_get_store1(self):
-        """Get store1 with JWT"""
-        r = requests.post(self.AUTHORISE_URL, json={"username": "user1", "password": "abc"})
-        access_token = r.json()['access_token']
-        self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.headers['Content-Length'], '193')
-
-        headers = {'Authorization': f'JWT {access_token}'}
-        r = requests.get(self.STORE_URL + 'store1', headers=headers)
+        """Get store1"""
+        r = requests.get(self.STORE_URL + 'store1')
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json(), {
             "id": 1,
@@ -149,9 +151,9 @@ class TestAPI(unittest.TestCase):
         r = requests.post(self.AUTHORISE_URL, json={"username": "user1", "password": "abc"})
         access_token = r.json()['access_token']
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.headers['Content-Length'], '193')
+        self.assertEqual(r.headers['Content-Length'], self.ATUH_HEADER_CONTENT_LENGTH)
 
-        headers = {'Authorization': f'JWT {access_token}'}
+        headers = {'Authorization': f'{self.AUTH_TOKEN_TYPE} {access_token}'}
         r = requests.get(self.USER_URL + '1', headers=headers)
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json(), {
@@ -159,14 +161,24 @@ class TestAPI(unittest.TestCase):
             "username": "user1"
         })
 
-    def test_150_get_all_items(self):
-        """Get all items"""
+    def test_150_get_all_items_not_logged_in(self):
+        """Get all items when not logged in"""
         r = requests.get(self.ALL_ITEMS_URL)
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json(), {"items": [
-            {'id': 1, 'name': 'item1', 'price': 9.99, 'store_id': 1},
-            {'id': 2, 'name': 'item2', 'price': 29.99, 'store_id': 2}]
-        })
+        self.assertEqual(r.json(), {'item': ['item1', 'item2'], 'message': 'More data available if you log in'})
+
+    def test_155_get_all_items_logged_in(self):
+        """Get all items whilst logged in"""
+        r = requests.post(self.AUTHORISE_URL, json={"username": "user1", "password": "abc"})
+        access_token = r.json()['access_token']
+        headers = {'Authorization': f'{self.AUTH_TOKEN_TYPE} {access_token}'}
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.headers['Content-Length'], self.ATUH_HEADER_CONTENT_LENGTH)
+
+        r = requests.get(self.ALL_ITEMS_URL, headers=headers)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json(), {'items': [{'id': 1, 'name': 'item1', 'price': 9.99, 'store_id': 1},
+                                              {'id': 2, 'name': 'item2', 'price': 29.99, 'store_id': 2}]})
 
     def test_160_get_all_stores(self):
         """Get all stores"""
@@ -236,19 +248,41 @@ class TestAPI(unittest.TestCase):
             "username": "user1"
         })
 
-    def test_200_delete_item1(self):
+    def test_200_delete_item1_non_admin(self):
         """Delete item1"""
-        r = requests.delete(self.ITEM_URL + 'item1')
+        r = requests.post(self.AUTHORISE_URL, json={"username": "user2", "password": "xyz"})
+        self.assertEqual(r.status_code, 200)
+        self.assertIsNotNone(r.json()['access_token'])
+        self.assertIsNotNone(r.json()['refresh_token'])
+
+        access_token = r.json()['access_token']
+        headers = {'Authorization': f'{self.AUTH_TOKEN_TYPE} {access_token}'}
+
+        r = requests.delete(self.ITEM_URL + 'item1', headers=headers)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json(), {"message": "Admin privilege required"})
+
+        # Confirm item1 has not been deleted
+        r = requests.get(self.ITEM_URL + 'item1', headers=headers)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json(), {"id": 1, "name": "item1", "price": 13.99, "store_id": 1})
+
+    # @unittest.skip
+    def test_210_delete_item1_admin(self):
+        """Delete item1"""
+        r = requests.post(self.AUTHORISE_URL, json={"username": "user1", "password": "abc"})
+        self.assertEqual(r.status_code, 200)
+        self.assertIsNotNone(r.json()['access_token'])
+        self.assertIsNotNone(r.json()['refresh_token'])
+
+        access_token = r.json()['access_token']
+        headers = {'Authorization': f'{self.AUTH_TOKEN_TYPE} {access_token}'}
+
+        r = requests.delete(self.ITEM_URL + 'item1', headers=headers)
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json(), {"message": "Item deleted"})
 
         # Confirm item1 has been deleted
-        r = requests.post(self.AUTHORISE_URL, json={"username": "user1", "password": "abc"})
-        access_token = r.json()['access_token']
-        self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.headers['Content-Length'], '193')
-
-        headers = {'Authorization': f'JWT {access_token}'}
         r = requests.get(self.ITEM_URL + 'item1', headers=headers)
         self.assertEqual(r.status_code, 404)
         self.assertEqual(r.json(), {"message": "Item not found"})
@@ -260,24 +294,63 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(r.json(), {"message": "Store deleted"})
 
         # Confirm store1 has been deleted
-        r = requests.post(self.AUTHORISE_URL, json={"username": "user1", "password": "abc"})
-        access_token = r.json()['access_token']
-        self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.headers['Content-Length'], '193')
-
-        headers = {'Authorization': f'JWT {access_token}'}
-        r = requests.get(self.STORE_URL + 'store1', headers=headers)
+        r = requests.get(self.STORE_URL + 'store1')
         self.assertEqual(r.status_code, 404)
         self.assertEqual(r.json(), {"message": "Store not found"})
 
-    def test_220_delete_user2(self):
-        """Delete user2"""
-        r = requests.delete(self.USER_URL + '2')
+    def test_220_delete_user2_stale_access_token(self):
+        """Delete user2 with not-fresh access token"""
+        # Get refresh token
+        r1 = requests.post(self.AUTHORISE_URL, json={"username": "user1", "password": "abc"})
+        self.assertEqual(r1.status_code, 200)
+        self.assertIsNotNone(r1.json()['access_token'])
+        self.assertIsNotNone(r1.json()['refresh_token'])
+        refresh_token = r1.json()['refresh_token']
+
+        # Get non-fresh access token
+        headers = {'Authorization': f'{self.AUTH_TOKEN_TYPE} {refresh_token}'}
+        r2 = requests.post(self.REFRESH_URL, headers=headers)
+        self.assertIsNotNone(r2.json()['access_token'])
+        nonfresh_access_token = r2.json()['access_token']
+
+        # Attempt to delete user2 with non-fresh access token
+        headers = {'Authorization': f'{self.AUTH_TOKEN_TYPE} {nonfresh_access_token}'}
+        r = requests.delete(f'{self.USER_URL}2', headers=headers)
+        self.assertEqual(r.status_code, 401)
+        self.assertEqual(r.json(), {
+            'description': 'The supplied token is not fresh.',
+            'error': 'fresh_token_required'
+        })
+
+        # Confirm user2 has not been deleted
+        r = requests.post(self.AUTHORISE_URL, json={"username": "user1", "password": "abc"})
+        access_token = r.json()['access_token']
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.headers['Content-Length'], self.ATUH_HEADER_CONTENT_LENGTH)
+
+        # headers = {'Authorization': f'{self.AUTH_TOKEN_TYPE} {access_token}'}
+        r = requests.get(self.USER_URL + '2', headers=headers)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json(), {
+            "id": 2,
+            "username": "user2"
+        })
+
+    def test_225_delete_user2_fresh_access_token(self):
+        """Delete user2 with fresh access token"""
+        r = requests.post(self.AUTHORISE_URL, json={"username": "user1", "password": "abc"})
+        self.assertEqual(r.status_code, 200)
+        self.assertIsNotNone(r.json()['access_token'])
+        self.assertIsNotNone(r.json()['refresh_token'])
+
+        access_token = r.json()['access_token']
+        headers = {'Authorization': f'{self.AUTH_TOKEN_TYPE} {access_token}'}
+        r = requests.delete(f'{self.USER_URL}2', headers=headers)
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json(), {"message": "User 2 deleted"})
 
         # Confirm user2 has been deleted
-        r = requests.get(self.USER_URL + '2')
+        r = requests.get(f'{self.USER_URL}2')
         self.assertEqual(r.status_code, 404)
         self.assertEqual(r.json(), {"message": "User 2 not found"})
 

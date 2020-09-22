@@ -11,7 +11,6 @@ class Store(Resource):
                         help="Store name cannot be empty"
                         )
 
-    @jwt_required()
     def get(self, name):
         try:
             store = StoreModel.find_by_name(name)

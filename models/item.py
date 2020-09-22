@@ -24,6 +24,10 @@ class ItemModel(db.Model):
     def find_by_name(cls, name):
         return cls.query.filter_by(name=name).first()  # select * from items where name = name limit 1
 
+    @classmethod
+    def find_all(cls):
+        return cls.query.all()  # select * from items
+
     def upsert(self):
         db.session.add(self)
         db.session.commit()
