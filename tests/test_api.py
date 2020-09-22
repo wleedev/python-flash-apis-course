@@ -7,12 +7,13 @@ class TestAPI(unittest.TestCase):
     API_BASE_URL = 'http://127.0.0.1:5000'
     HEALTH_URL = f'{API_BASE_URL}/health'
     AUTH_TOKEN_TYPE = 'Bearer'
-    ATUH_HEADER_CONTENT_LENGTH = '612'
+    AUTH_HEADER_CONTENT_LENGTH = '612'
 
     # Users URLs
     ALL_USERS_URL = f'{API_BASE_URL}/users'
     REGISTER_URL = f'{API_BASE_URL}/register'
     AUTHORISE_URL = f'{API_BASE_URL}/login'
+    LOGOUT_URL = f'{API_BASE_URL}/logout'
     USER_URL = f'{API_BASE_URL}/user/'
     REFRESH_URL = f'{API_BASE_URL}/refresh'
 
@@ -85,7 +86,7 @@ class TestAPI(unittest.TestCase):
         """Authorise user1"""
         r = requests.post(self.AUTHORISE_URL, json={"username": "user1", "password": "abc"})
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.headers['Content-Length'], self.ATUH_HEADER_CONTENT_LENGTH)
+        self.assertEqual(r.headers['Content-Length'], self.AUTH_HEADER_CONTENT_LENGTH)
 
     def test_080_create_store1(self):
         """Create a new store1"""
@@ -120,7 +121,7 @@ class TestAPI(unittest.TestCase):
         r = requests.post(self.AUTHORISE_URL, json={"username": "user1", "password": "abc"})
         access_token = r.json()['access_token']
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.headers['Content-Length'], self.ATUH_HEADER_CONTENT_LENGTH)
+        self.assertEqual(r.headers['Content-Length'], self.AUTH_HEADER_CONTENT_LENGTH)
 
         headers = {'Authorization': f'{self.AUTH_TOKEN_TYPE} {access_token}'}
         r = requests.get(self.ITEM_URL + 'item1', headers=headers)
@@ -151,7 +152,7 @@ class TestAPI(unittest.TestCase):
         r = requests.post(self.AUTHORISE_URL, json={"username": "user1", "password": "abc"})
         access_token = r.json()['access_token']
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.headers['Content-Length'], self.ATUH_HEADER_CONTENT_LENGTH)
+        self.assertEqual(r.headers['Content-Length'], self.AUTH_HEADER_CONTENT_LENGTH)
 
         headers = {'Authorization': f'{self.AUTH_TOKEN_TYPE} {access_token}'}
         r = requests.get(self.USER_URL + '1', headers=headers)
@@ -173,7 +174,7 @@ class TestAPI(unittest.TestCase):
         access_token = r.json()['access_token']
         headers = {'Authorization': f'{self.AUTH_TOKEN_TYPE} {access_token}'}
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.headers['Content-Length'], self.ATUH_HEADER_CONTENT_LENGTH)
+        self.assertEqual(r.headers['Content-Length'], self.AUTH_HEADER_CONTENT_LENGTH)
 
         r = requests.get(self.ALL_ITEMS_URL, headers=headers)
         self.assertEqual(r.status_code, 200)
@@ -259,7 +260,7 @@ class TestAPI(unittest.TestCase):
         headers = {'Authorization': f'{self.AUTH_TOKEN_TYPE} {access_token}'}
 
         r = requests.delete(self.ITEM_URL + 'item1', headers=headers)
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 401)
         self.assertEqual(r.json(), {"message": "Admin privilege required"})
 
         # Confirm item1 has not been deleted
@@ -326,7 +327,7 @@ class TestAPI(unittest.TestCase):
         r = requests.post(self.AUTHORISE_URL, json={"username": "user1", "password": "abc"})
         access_token = r.json()['access_token']
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.headers['Content-Length'], self.ATUH_HEADER_CONTENT_LENGTH)
+        self.assertEqual(r.headers['Content-Length'], self.AUTH_HEADER_CONTENT_LENGTH)
 
         # headers = {'Authorization': f'{self.AUTH_TOKEN_TYPE} {access_token}'}
         r = requests.get(self.USER_URL + '2', headers=headers)
@@ -370,6 +371,56 @@ class TestAPI(unittest.TestCase):
             "store_id": 1
         })
         self.assertEqual(r.status_code, 200)
+
+    @unittest.skip
+    def test_250_get_item2_as_blocklist_user4(self):
+        """Fail to the item2, as blocked user4"""
+        r = requests.post(self.REGISTER_URL, {"username": "user3", "password": "def"})
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.json(), {"message": "User created successfully."})
+
+        r = requests.post(self.REGISTER_URL, {"username": "user4", "password": "ghi"})
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.json(), {"message": "User created successfully."})
+
+        r = requests.post(self.AUTHORISE_URL, json={"username": "user4", "password": "ghi"})
+        access_token = r.json()['access_token']
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.headers['Content-Length'], 614)
+
+        headers = {'Authorization': f'{self.AUTH_TOKEN_TYPE} {access_token}'}
+        r = requests.get(self.ITEM_URL + 'item2', headers=headers)
+        self.assertEqual(r.status_code, 401)
+        self.assertEqual(r.json(), {
+            "description": "The supplied token has been revoked.",
+            "error": "token_revoked"
+        })
+
+    def test_260_logout_user1(self):
+        """Log in, get item1, log out"""
+        r = requests.post(self.AUTHORISE_URL, json={"username": "user1", "password": "abc"})
+        access_token = r.json()['access_token']
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.headers['Content-Length'], self.AUTH_HEADER_CONTENT_LENGTH)
+
+        headers = {'Authorization': f'{self.AUTH_TOKEN_TYPE} {access_token}'}
+        r = requests.get(self.ITEM_URL + 'item2', headers=headers)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['name'], 'item2')
+        self.assertEqual(r.json()['price'], 29.99)
+        self.assertEqual(r.json()['store_id'], 2)
+
+        # Log out
+        r = requests.post(self.LOGOUT_URL, headers=headers)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json(), {"message": "Successfully logged out."})
+
+        r = requests.get(self.ITEM_URL + 'item2', headers=headers)
+        self.assertEqual(r.status_code, 401)
+        self.assertEqual(r.json(), {
+            "description": "The supplied token has been revoked.",
+            "error": "token_revoked"
+        })
 
     def tearDown(self):
         pass
